@@ -3,6 +3,7 @@ const morgan = require('morgan');
 const cors = require('cors');
 const path = require('path');
 const killPort = require('kill-port');
+const { ethers } = require('ethers');
 
 require('dotenv').config();
 
@@ -43,25 +44,81 @@ const checkPort = async (port, maxPort = 65535) => {
     require('./config/dbHandler.js').connect();
 
     /**
-     * @route    [HTTP_METHOD] /api/endpoint
-     * @desc     [Short summary of what this endpoint does, e.g., Reads or sets value in smart contract]
-     * @author   [Your Name]
-     * @access   [public/private/auth-required]
-     * @param    {Request}  req  - Express request object. [Describe relevant body/query/params fields]
-     * @param    {Response} res  - Express response object.
-     * @returns  {JSON}          [Describe the JSON structure returned]
-     * @throws   [Error conditions, e.g., 400 on invalid input, 500 on contract failure]
-     *
-     * @example
-     * // Example request
-     * curl -X POST http://localhost:3001/contract/value -H "Content-Type: application/json" -d '{"value": 42}'
-     *
-     * // Example response
-     * {
-     *   "message": "Value updated",
-     *   "txHash": "0x..."
-     * }
-     */
+  * @route    GET /api/AbhishekApiTest
+  * @desc     Fetches live data from the LINK token contract on Sepolia testnet
+  *           including name, symbol, decimals and total supply.
+  * @author   Abhishek Chaudhary
+  * @access   public
+  * @param    {Request}  req  - No params required
+  * @param    {Response} res  - Express response object
+  * @returns  {JSON}     { name, symbol, decimals, totalSupply, network }
+  * @throws   500 on RPC or contract failure
+  *
+  * @example
+  * // Example request
+  * curl http://localhost:3001/api/YourNameApiTest
+  *
+  * // Example response
+  * {
+  *   "name": "ChainLink Token",
+  *   "symbol": "LINK",
+  *   "decimals": 18,
+  *   "totalSupply": "1,000,000,000.00",
+  *   "network": "Sepolia Testnet"
+  * }
+  */
+    app.get('/api/AbhishekApiTest', async (req, res) => {
+        try {
+            const provider = new ethers.JsonRpcProvider(
+                `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+            );
+
+            // Chainlink LINK token — deployed on Sepolia testnet
+            const LINK_ADDRESS = '0x779877A7B0D9E8603169DdbD7836e478b4624789';
+
+            const ERC20_ABI = [
+                'function name() view returns (string)',
+                'function symbol() view returns (string)',
+                'function decimals() view returns (uint8)',
+                'function totalSupply() view returns (uint256)',
+            ];
+
+            const contract = new ethers.Contract(LINK_ADDRESS, ERC20_ABI, provider);
+
+            const [name, symbol, decimals, rawSupply] = await Promise.all([
+                contract.name(),
+                contract.symbol(),
+                contract.decimals(),
+                contract.totalSupply(),
+            ]);
+
+            const totalSupply = (
+                Number(rawSupply) / Math.pow(10, Number(decimals))
+            ).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+            const result = {
+                name,
+                symbol,
+                decimals: Number(decimals),
+                totalSupply,
+                contractAddress: LINK_ADDRESS,
+                network: 'Sepolia Testnet',
+                fetchedAt: new Date().toISOString(),
+            };
+
+            console.log('\n✅ [AbhishekApiTest] Smart Contract Data Fetched:');
+            console.table(result);
+
+            return res.status(200).json(result);
+
+        } catch (error) {
+            console.error('❌ [AbhishekApiTest] Error:', error.message);
+            return res.status(500).json({
+                error: 'Failed to fetch contract data',
+                details: error.message,
+            });
+        }
+    });
 
     // Serve static files in production
     if (process.env.NODE_ENV === 'production') {
